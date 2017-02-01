@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"github.com/influxdata/telegraf/plugins/serializers/graphite"
 )
 
 var sampleConfig = `
@@ -207,6 +208,12 @@ func (h *Http) makeRequestBody() ([]byte, error) {
 	switch h.serializer.(type) {
 	case *json.JsonSerializer:
 		return makeJsonFormatRequestBody(h)
+	case *graphite.GraphiteSerializer:
+		if h.serializer.(*graphite.GraphiteSerializer).Protocol == "json" {
+			return makeJsonFormatRequestBody(h)
+		}
+
+		return makePlainTextFormatRequestBody(h)
 	default:
 		return makePlainTextFormatRequestBody(h)
 	}
