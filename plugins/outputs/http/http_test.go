@@ -54,7 +54,7 @@ func TestHttpWriteNormalCase(t *testing.T) {
 		URL:                 "http://127.0.0.1:9880/metric",
 		HttpHeaders:         []string{"Content-Type:application/json"},
 		ExpectedStatusCodes: []int{200, 204},
-		BufferLimit:         1,
+		MaxBlukLimit:         1,
 	}
 
 	http.SetSerializer(&graphite.GraphiteSerializer{
@@ -68,30 +68,6 @@ func TestHttpWriteNormalCase(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestHttpWriteWithUnexpected404StatusCode(t *testing.T) {
-	now := time.Now()
-
-	m, _ := metric.New("cpu", tags, fields, now)
-	metrics := []telegraf.Metric{m}
-
-	http := &Http{
-		URL:                 "http://127.0.0.1:9880/incorrect/url",
-		HttpHeaders:         []string{"Content-Type:application/json"},
-		ExpectedStatusCodes: []int{200},
-		BufferLimit:         1,
-	}
-
-	http.SetSerializer(&graphite.GraphiteSerializer{
-		Prefix:   "telegraf",
-		Template: "tags.measurement.field",
-	})
-
-	http.Connect()
-	err := http.Write(metrics)
-
-	assert.Error(t, err)
-}
-
 func TestHttpWriteWithExpected404StatusCode(t *testing.T) {
 	now := time.Now()
 
@@ -102,7 +78,7 @@ func TestHttpWriteWithExpected404StatusCode(t *testing.T) {
 		URL:                 "http://127.0.0.1:9880/incorrect/url",
 		HttpHeaders:         []string{"Content-Type:application/json"},
 		ExpectedStatusCodes: []int{200, 404},
-		BufferLimit:         1,
+		MaxBlukLimit:         1,
 	}
 
 	http.SetSerializer(&graphite.GraphiteSerializer{

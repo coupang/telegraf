@@ -9,12 +9,12 @@ import (
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/plugins/outputs"
 	"github.com/influxdata/telegraf/plugins/serializers"
+	"github.com/influxdata/telegraf/plugins/serializers/graphite"
 	"github.com/influxdata/telegraf/plugins/serializers/json"
 	"net"
 	"net/http"
 	"strings"
 	"time"
-	"github.com/influxdata/telegraf/plugins/serializers/graphite"
 )
 
 var sampleConfig = `
@@ -34,8 +34,11 @@ var sampleConfig = `
   response_header_timeout = 3
   ## Configure dial timeout in seconds. Default : 3
   dial_timeout = 3
-  ## Option to set the number of metrics to include in the request body.
-  buffer_limit = 10
+  ## max_bulk_limit defines how much of the metrics will be sent.
+  ## Max_bulk_limit = 0   => Write all metrics collected during flush_interval.
+  ## Max_bulk_limit = 100 => Write 100 of all metrics collected during flush_interval.
+  ## Note that If the amount of metric collected during flush_interval is less than max_bulk_limit, then all of the stacked metrics are sent.
+  max_bulk_limit = 0
 
   ## Data format to output.
   ## Each data format has it's own unique set of configuration options, read
@@ -49,7 +52,7 @@ const (
 
 	DEFAULT_RESPONSE_HEADER_TIMEOUT = 3
 	DEFAULT_DIAL_TIME_OUT           = 3
-	DEFAULT_BUFFER_LIMIT            = 10
+	DEFAULT_MAX_BLUK_LIMIT          = 0
 )
 
 type Http struct {
@@ -61,7 +64,7 @@ type Http struct {
 	// Option with http default value
 	ResponseHeaderTimeout int `toml:"response_header_timeout"`
 	DialTimeOut           int `toml:"dial_timeout"`
-	BufferLimit           int `toml:"buffer_limit"`
+	MaxBlukLimit          int `toml:"max_bulk_limit"`
 
 	client     http.Client
 	serializer serializers.Serializer
@@ -71,8 +74,6 @@ type Http struct {
 	// Context for request cancel of client
 	cancelContext context.Context
 	cancel        context.CancelFunc
-	// RequestBodyMetricBuffer is a buffer containing the metrics to be included in the request body up to the buffer limit.
-	requestBodyMetricBuffer [][]byte
 }
 
 func (h *Http) SetSerializer(serializer serializers.Serializer) {
@@ -118,6 +119,8 @@ func (h *Http) Write(metrics []telegraf.Metric) error {
 		return err
 	}
 
+	var reqBodyBuf [][]byte
+
 	for _, metric := range metrics {
 		buf, err := h.serializer.Serialize(metric)
 
@@ -125,28 +128,76 @@ func (h *Http) Write(metrics []telegraf.Metric) error {
 			return fmt.Errorf("E! Error serializing some metrics: %s", err.Error())
 		}
 
-		h.requestBodyMetricBuffer = append(h.requestBodyMetricBuffer, buf)
+		reqBodyBuf = append(reqBodyBuf, buf)
+	}
 
-		if h.BufferLimit <= len(h.requestBodyMetricBuffer) {
-			requestBody, err := h.makeRequestBody()
-
-			if err != nil {
-				return fmt.Errorf("E! Error serialized metric is not assembled : %s", err.Error())
-			}
-
-			response, err := h.write(requestBody)
-
-			if err := h.isOk(response, err); err != nil {
-				return err
-			}
-
-			defer response.Body.Close()
-
-			h.requestBodyMetricBuffer = nil
+	if (h.MaxBlukLimit == 0 || len(reqBodyBuf) <= h.MaxBlukLimit) {
+		if err := h.write(reqBodyBuf); err != nil {
+			return err
 		}
+
+		return nil
+	}
+
+	if err := h.splitWrite(reqBodyBuf); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+// splitWrite sends the divided metric by max_bulk_limit.
+func (h *Http) splitWrite(reqBodyBuf [][]byte) error {
+	s := 0
+	e := h.MaxBlukLimit
+	mLength := len(reqBodyBuf)
+
+	for true {
+		if (mLength <= e) {
+			if err := h.write(reqBodyBuf[s:mLength]); err != nil {
+				return err
+			}
+
+			break
+		} else {
+			if err := h.write(reqBodyBuf[s:e]); err != nil {
+				return err
+			}
+		}
+
+		s += h.MaxBlukLimit
+		e += h.MaxBlukLimit
+	}
+
+	return nil
+}
+
+func (h *Http) write(reqBodyBuf [][]byte) error {
+	requestBody, err := h.makeRequestBody(reqBodyBuf)
+
+	if err != nil {
+		return fmt.Errorf("E! Error serialized metric is not assembled : %s", err.Error())
+	}
+
+	req, err := http.NewRequest(POST, h.URL, bytes.NewBuffer(requestBody))
+
+	for _, httpHeader := range h.HttpHeaders {
+		keyAndValue := strings.Split(httpHeader, ":")
+		req.Header.Set(keyAndValue[0], keyAndValue[1])
+	}
+
+	req.Close = true
+	req.WithContext(h.cancelContext)
+
+	response, err := h.client.Do(req)
+
+	if err := h.isOk(response, err); err != nil {
+		return err
+	}
+
+	response.Body.Close()
+
+	return err
 }
 
 func (h *Http) isOk(response *http.Response, err error) error {
@@ -179,62 +230,46 @@ func (h *Http) isExpectedStatusCode(responseStatusCode int) bool {
 
 // required option validate
 func validate(h *Http) error {
-	if h.URL == "" || len(h.HttpHeaders) == 0 || len(h.ExpectedStatusCodes) == 0 || h.BufferLimit == 0 {
-		return errors.New("E! Http ouput plugin is not working. Because your configuration omits the required option. Please check url, http_headers, expected_status_codes, buffer_limit is empty!")
+	if h.URL == "" || len(h.HttpHeaders) == 0 || len(h.ExpectedStatusCodes) == 0 {
+		return errors.New("E! Http ouput plugin is not working. Because your configuration omits the required option. Please check url, http_headers, expected_status_codes is empty!")
 	}
 
 	return nil
-}
-
-func (h *Http) write(buf []byte) (*http.Response, error) {
-	req, err := http.NewRequest(POST, h.URL, bytes.NewBuffer(buf))
-
-	for _, httpHeader := range h.HttpHeaders {
-		keyAndValue := strings.Split(httpHeader, ":")
-		req.Header.Set(keyAndValue[0], keyAndValue[1])
-	}
-
-	req.Close = true
-	req.WithContext(h.cancelContext)
-
-	response, err := h.client.Do(req)
-
-	return response, err
 }
 
 // makeRequestBody does additional work so that each serializer can include serialized metrics in the request body.
 // For example, a serialized metric in json.JsonSerializer returns a metric that looks like JsonObject {"key1": "value1"}.
 // In order to accumulate this in the buffer and send it to the request body at once, you need to convert it to Array Json Object [{"key1": "value1"}, {"key2": "value2"}].
 // Thus, makeRequestBody works by making the request body contain the metric returned by each serializer.
-func (h *Http) makeRequestBody() ([]byte, error) {
+func (h *Http) makeRequestBody(requestBodyMetricBuffer [][]byte) ([]byte, error) {
 	switch h.serializer.(type) {
 	case *json.JsonSerializer:
-		return makeJsonFormatRequestBody(h)
+		return makeJsonFormatRequestBody(requestBodyMetricBuffer)
 	case *graphite.GraphiteSerializer:
 		if h.serializer.(*graphite.GraphiteSerializer).Protocol == "json" {
-			return makeJsonFormatRequestBody(h)
+			return makeJsonFormatRequestBody(requestBodyMetricBuffer)
 		}
 
-		return makePlainTextFormatRequestBody(h)
+		return makePlainTextFormatRequestBody(requestBodyMetricBuffer)
 	default:
-		return makePlainTextFormatRequestBody(h)
+		return makePlainTextFormatRequestBody(requestBodyMetricBuffer)
 	}
 }
 
-func makePlainTextFormatRequestBody(h *Http) ([]byte, error) {
+func makePlainTextFormatRequestBody(requestBodyMetricBuffer [][]byte) ([]byte, error) {
 	var requestBody bytes.Buffer
 
-	for _, serializedMetric := range h.requestBodyMetricBuffer {
+	for _, serializedMetric := range requestBodyMetricBuffer {
 		requestBody.Write(serializedMetric)
 	}
 
 	return requestBody.Bytes(), nil
 }
 
-func makeJsonFormatRequestBody(h *Http) ([]byte, error) {
+func makeJsonFormatRequestBody(requestBodyMetricBuffer [][]byte) ([]byte, error) {
 	var requestBody []map[string]interface{}
 
-	for _, serializedMetric := range h.requestBodyMetricBuffer {
+	for _, serializedMetric := range requestBodyMetricBuffer {
 		arrayJsonObject, err := unmarshalArrayJsonObject(serializedMetric)
 
 		if err != nil {
@@ -274,7 +309,7 @@ func init() {
 		return &Http{
 			ResponseHeaderTimeout: DEFAULT_RESPONSE_HEADER_TIMEOUT,
 			DialTimeOut:           DEFAULT_DIAL_TIME_OUT,
-			BufferLimit:           DEFAULT_BUFFER_LIMIT,
+			MaxBlukLimit:          DEFAULT_MAX_BLUK_LIMIT,
 		}
 	})
 }
