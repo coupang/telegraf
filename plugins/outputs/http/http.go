@@ -186,16 +186,13 @@ func (h *Http) write(reqBodyBuf [][]byte) error {
 		req.Header.Set(keyAndValue[0], keyAndValue[1])
 	}
 
-	req.Close = true
-	req.WithContext(h.cancelContext)
-
 	response, err := h.client.Do(req)
 
 	if err := h.isOk(response, err); err != nil {
 		return err
 	}
 
-	response.Body.Close()
+	defer response.Body.Close()
 
 	return err
 }
