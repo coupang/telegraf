@@ -54,7 +54,7 @@ func TestHttpWriteNormalCase(t *testing.T) {
 		URL:                 "http://127.0.0.1:9880/metric",
 		HttpHeaders:         []string{"Content-Type:application/json"},
 		ExpectedStatusCodes: []int{200, 204},
-		MaxBlukLimit:         1,
+		MaxBlukLimit:        1,
 	}
 
 	http.SetSerializer(&graphite.GraphiteSerializer{
@@ -78,7 +78,7 @@ func TestHttpWriteWithExpected404StatusCode(t *testing.T) {
 		URL:                 "http://127.0.0.1:9880/incorrect/url",
 		HttpHeaders:         []string{"Content-Type:application/json"},
 		ExpectedStatusCodes: []int{200, 404},
-		MaxBlukLimit:         1,
+		MaxBlukLimit:        1,
 	}
 
 	http.SetSerializer(&graphite.GraphiteSerializer{

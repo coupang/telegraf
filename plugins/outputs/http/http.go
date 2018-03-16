@@ -88,6 +88,9 @@ func (h *Http) Connect() error {
 				Timeout: time.Duration(h.DialTimeOut) * time.Second,
 			}).Dial,
 			ResponseHeaderTimeout: time.Duration(h.ResponseHeaderTimeout) * time.Second,
+			MaxIdleConns:          20,
+			MaxIdleConnsPerHost:   20,
+			IdleConnTimeout:       20,
 		},
 	}
 
@@ -131,7 +134,7 @@ func (h *Http) Write(metrics []telegraf.Metric) error {
 		reqBodyBuf = append(reqBodyBuf, buf)
 	}
 
-	if (h.MaxBlukLimit == 0 || len(reqBodyBuf) <= h.MaxBlukLimit) {
+	if h.MaxBlukLimit == 0 || len(reqBodyBuf) <= h.MaxBlukLimit {
 		if err := h.write(reqBodyBuf); err != nil {
 			return err
 		}
@@ -153,7 +156,7 @@ func (h *Http) splitWrite(reqBodyBuf [][]byte) error {
 	mLength := len(reqBodyBuf)
 
 	for true {
-		if (mLength <= e) {
+		if mLength <= e {
 			if err := h.write(reqBodyBuf[s:mLength]); err != nil {
 				return err
 			}
