@@ -82,7 +82,7 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 
 		var path string
 
-		path = strings.Replace(du.Path, os.Getenv("HOST_MOUNT_PREFIX"), "", 1)
+		path = strings.Replace(du.Path, HOSTFS, "", 1)
 
 		if strings.HasPrefix(path, "/") {
 			path = strings.Replace(path, "/", "", 1)
