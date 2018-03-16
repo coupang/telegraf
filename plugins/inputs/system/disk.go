@@ -24,6 +24,8 @@ type DiskStats struct {
 
 const (
 	ROOT_PATH = "root"
+	EMPTH_STRING = ""
+	HOSTFS = "hostfs"
 	ROOT      = "/"
 )
 
@@ -86,7 +88,7 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 			path = strings.Replace(path, "/", "", 1)
 		}
 
-		if path == "" || path == ROOT {
+		if path == EMPTH_STRING || path == ROOT || path == HOSTFS {
 			path = ROOT_PATH
 		}
 
