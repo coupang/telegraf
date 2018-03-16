@@ -26,6 +26,7 @@ const (
 	ROOT_PATH = "root"
 	EMPTH_STRING = ""
 	HOSTFS = "hostfs"
+	HOSTFS_MOUNTPOINT = "/hostfs"
 	ROOT      = "/"
 )
 
@@ -82,7 +83,7 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 
 		var path string
 
-		path = strings.Replace(du.Path, HOSTFS, "", 1)
+		path = strings.Replace(du.Path, HOSTFS_MOUNTPOINT, "", 1)
 
 		if strings.HasPrefix(path, "/") {
 			path = strings.Replace(path, "/", "", 1)
