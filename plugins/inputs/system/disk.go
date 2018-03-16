@@ -6,7 +6,6 @@ import (
 
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/plugins/inputs"
-	"os"
 )
 
 type DiskStats struct {
