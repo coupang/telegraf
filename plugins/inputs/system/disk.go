@@ -62,7 +62,7 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 		s.ignoreMountPoints = make(map[string]bool)
 
 		for _, ignoreMountPoint := range s.IgnoreMountPoints {
-			s.ignoreMountPoints[os.Getenv("HOST_MOUNT_PREFIX")+ignoreMountPoint] = true
+			s.ignoreMountPoints[HOSTFS_MOUNTPOINT+ignoreMountPoint] = true
 		}
 	}
 
