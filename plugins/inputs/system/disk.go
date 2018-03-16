@@ -23,11 +23,11 @@ type DiskStats struct {
 }
 
 const (
-	ROOT_PATH = "root"
-	EMPTH_STRING = ""
-	HOSTFS = "hostfs"
+	ROOT_PATH         = "root"
+	EMPTH_STRING      = ""
+	HOSTFS            = "hostfs"
 	HOSTFS_MOUNTPOINT = "/hostfs"
-	ROOT      = "/"
+	ROOT              = "/"
 )
 
 func (_ *DiskStats) Description() string {
