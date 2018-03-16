@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"io/ioutil"
 )
 
 var sampleConfig = `
@@ -90,7 +91,7 @@ func (h *Http) Connect() error {
 			ResponseHeaderTimeout: time.Duration(h.ResponseHeaderTimeout) * time.Second,
 			MaxIdleConns:          20,
 			MaxIdleConnsPerHost:   20,
-			IdleConnTimeout:       20,
+			IdleConnTimeout:       60 * time.Second,
 		},
 	}
 
@@ -191,11 +192,16 @@ func (h *Http) write(reqBodyBuf [][]byte) error {
 
 	response, err := h.client.Do(req)
 
-	if err := h.isOk(response, err); err != nil {
-		return err
+	if err != nil {
+		return fmt.Errorf("E! %s request failed! %s.", h.URL, err.Error())
 	}
 
 	defer response.Body.Close()
+	_, err = ioutil.ReadAll(response.Body)
+
+	if err := h.isOk(response, err); err != nil {
+		return err
+	}
 
 	return err
 }
