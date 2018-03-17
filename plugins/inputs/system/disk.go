@@ -52,8 +52,21 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 			// Skip dummy filesystem (procfs, cgroupfs, ...)
 			continue
 		}
+
+		var path string
+
+		path = strings.Replace(du.Path, "/hostfs", "", 1)
+
+		if strings.HasPrefix(path, "/") {
+			path = strings.Replace(path, "/", "", 1)
+		}
+
+		if path == "" || path == "/" || path == "hostfs" {
+			path = "root"
+		}
+
 		tags := map[string]string{
-			"path":   du.Path,
+			"path":   path,
 			"device": strings.Replace(partitions[i].Device, "/dev/", "", -1),
 			"fstype": du.Fstype,
 		}
