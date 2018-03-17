@@ -16,18 +16,7 @@ type DiskStats struct {
 
 	MountPoints []string
 	IgnoreFS    []string `toml:"ignore_fs"`
-
-	IgnoreMountPoints []string `toml:"ignore_mount_points"`
-	ignoreMountPoints map[string]bool
 }
-
-const (
-	ROOT_PATH         = "root"
-	EMPTH_STRING      = ""
-	HOSTFS            = "hostfs"
-	HOSTFS_MOUNTPOINT = "/hostfs"
-	ROOT              = "/"
-)
 
 func (_ *DiskStats) Description() string {
 	return "Read metrics about disk usage by mount point"
@@ -41,10 +30,6 @@ var diskSampleConfig = `
   ## Ignore some mountpoints by filesystem type. For example (dev)tmpfs (usually
   ## present on /run, /var/run, /dev/shm or /dev).
   ignore_fs = ["tmpfs", "devtmpfs", "devfs"]
-
-  ## Ignore some mountpoints by mount point. 
-  ## For example /sys/fs/cgroup
-  # ignore_mount_points = ["/dev", "/sys/fs/cgroup", "/dev/shm", "/run", "/run/lock", "/sys/fs/cgroup", "/proc/kcore", "/proc/timer_list", "/proc/timer_stats", "/proc/sched_debug"]
 `
 
 func (_ *DiskStats) SampleConfig() string {
@@ -57,14 +42,6 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 		s.MountPoints = s.Mountpoints
 	}
 
-	if s.ignoreMountPoints == nil {
-		s.ignoreMountPoints = make(map[string]bool)
-
-		for _, ignoreMountPoint := range s.IgnoreMountPoints {
-			s.ignoreMountPoints[HOSTFS_MOUNTPOINT+ignoreMountPoint] = true
-		}
-	}
-
 	disks, partitions, err := s.ps.DiskUsage(s.MountPoints, s.IgnoreFS)
 	if err != nil {
 		return fmt.Errorf("error getting disk usage info: %s", err)
@@ -75,25 +52,8 @@ func (s *DiskStats) Gather(acc telegraf.Accumulator) error {
 			// Skip dummy filesystem (procfs, cgroupfs, ...)
 			continue
 		}
-
-		if _, ok := s.ignoreMountPoints[du.Path]; ok {
-			continue
-		}
-
-		var path string
-
-		path = strings.Replace(du.Path, HOSTFS_MOUNTPOINT, "", 1)
-
-		if strings.HasPrefix(path, "/") {
-			path = strings.Replace(path, "/", "", 1)
-		}
-
-		if path == EMPTH_STRING || path == ROOT || path == HOSTFS {
-			path = ROOT_PATH
-		}
-
 		tags := map[string]string{
-			"path":   path,
+			"path":   du.Path,
 			"device": strings.Replace(partitions[i].Device, "/dev/", "", -1),
 			"fstype": du.Fstype,
 		}
@@ -190,10 +150,7 @@ func (s *DiskIOStats) Gather(acc telegraf.Accumulator) error {
 
 func init() {
 	inputs.Add("disk", func() telegraf.Input {
-		return &DiskStats{
-			ps:                &systemPS{},
-			IgnoreMountPoints: []string{},
-		}
+		return &DiskStats{ps: &systemPS{}}
 	})
 
 	inputs.Add("diskio", func() telegraf.Input {

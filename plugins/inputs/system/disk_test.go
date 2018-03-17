@@ -3,12 +3,10 @@ package system
 import (
 	"testing"
 
-	"fmt"
 	"github.com/influxdata/telegraf/testutil"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
 )
 
 func TestDiskStats(t *testing.T) {
@@ -128,20 +126,6 @@ func TestDiskStats(t *testing.T) {
 	// / and /home
 	err = (&DiskStats{ps: &mps, MountPoints: []string{"/", "/home"}}).Gather(&acc)
 	assert.Equal(t, 2*expectedAllDiskMetrics+7, acc.NFields())
-
-	// We should see remain root diskpoints as MountPoints ignore /home.
-	// include / and ignore /home
-	err = (&DiskStats{ps: &mps, MountPoints: []string{"/", "/home"}, IgnoreMountPoints: []string{"/home"}}).Gather(&acc)
-	rootMetrics := 7
-	assert.Equal(t, 2*expectedAllDiskMetrics+7+rootMetrics, acc.NFields())
-}
-
-func Test(t *testing.T) {
-	str := "-hostfs-pang-logs"
-	if strings.HasPrefix(str, "-") {
-		str = strings.Replace(str, "-", "", 1)
-	}
-	fmt.Println(str)
 }
 
 // func TestDiskIOStats(t *testing.T) {

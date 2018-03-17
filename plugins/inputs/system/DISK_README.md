@@ -14,12 +14,6 @@ https://en.wikipedia.org/wiki/Df_(Unix) for more details.
   # By default, telegraf gather stats for all mountpoints.
   # Setting mountpoints will restrict the stats to the specified mountpoints.
   # mount_points = ["/"]
-  ## Ignore some mountpoints by filesystem type. For example (dev)tmpfs (usually
-  ## present on /run, /var/run, /dev/shm or /dev).
-  ignore_fs = ["tmpfs", "devtmpfs", "devfs"]
-  
-  ## Ignore some mountpoints by mount point. 
-  # ignore_mount_points = ["/dev", "/sys/fs/cgroup", "/dev/shm", "/run", "/run/lock", "/sys/fs/cgroup", "/proc/kcore", "/proc/timer_list", "/proc/timer_stats", "/proc/sched_debug"]
 ```
 
 Additionally, the behavior of resolving the `mount_points` can be configured by using the `HOST_MOUNT_PREFIX` environment variable.

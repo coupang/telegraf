@@ -207,6 +207,10 @@ func (h *Http) write(reqBodyBuf [][]byte) error {
 }
 
 func (h *Http) isOk(response *http.Response, err error) error {
+	if response == nil || err != nil {
+		return fmt.Errorf("E! %s request failed! %s.", h.URL, err.Error())
+	}
+
 	if !h.isExpectedStatusCode(response.StatusCode) {
 		return fmt.Errorf("E! %s response is unexpected status code : %d.", h.URL, response.StatusCode)
 	}
