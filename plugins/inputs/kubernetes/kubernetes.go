@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/telegraf/internal"
 	"github.com/influxdata/telegraf/internal/errchan"
 	"github.com/influxdata/telegraf/plugins/inputs"
+	"strings"
 )
 
 // Kubernetes represents the config object for the plugin
@@ -115,7 +116,7 @@ func (k *Kubernetes) gatherSummary(baseURL string, acc telegraf.Accumulator) err
 		if err != nil {
 			return err
 		}
-		req.Header.Set("Authorization", "Bearer "+string(token))
+		req.Header.Set("Authorization", "Bearer "+strings.Replace(string(token), "\n", "", -1))
 	}
 
 	resp, err = k.RoundTripper.RoundTrip(req)
